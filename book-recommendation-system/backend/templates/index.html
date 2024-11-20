@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Recommendation System</title>
+    <style>
+        /* General Layout Styles */
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f7fc;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+
+        h1 {
+            color: #5c6bc0;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        /* Search Container Styling */
+        .search-container {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #searchTerm {
+            padding: 10px;
+            width: 50%;
+            font-size: 16px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            transition: all 0.3s ease;
+        }
+
+        #searchTerm:focus {
+            border-color: #5c6bc0;
+            outline: none;
+        }
+
+        #sortBy, #sortOrder {
+            padding: 10px;
+            margin-left: 10px;
+            font-size: 16px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            transition: all 0.3s ease;
+        }
+
+        #sortBy:hover, #sortOrder:hover {
+            border-color: #5c6bc0;
+        }
+
+        /* Book List Styling */
+        .book-list {
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        .book-list.loaded {
+            opacity: 1;
+        }
+
+        .book-item {
+            background-color: #fff;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .book-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+            border-color: #5c6bc0;
+        }
+
+        .book-item h3 {
+            color: #5c6bc0;
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+
+        .book-item p {
+            font-size: 14px;
+            margin: 5px 0;
+        }
+
+        .book-item a {
+            color: #5c6bc0;
+            text-decoration: none;
+        }
+
+        .book-item a:hover {
+            text-decoration: underline;
+        }
+
+        /* Pagination Styling */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .pagination button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            background-color: #fff;
+            margin: 0 5px;
+            border-radius: 5px;
+            transition: background-color 0.3s ease, transform 0.3s ease;
+        }
+
+        .pagination button:hover {
+            background-color: #5c6bc0;
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .pagination button:disabled {
+            background-color: #f0f0f0;
+            cursor: not-allowed;
+        }
+
+        .pagination button:disabled:hover {
+            background-color: #f0f0f0;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Book Recommendation System</h1>
+
+    <!-- Search and Sorting Form -->
+    <div class="search-container">
+        <input type="text" id="searchTerm" placeholder="Search by title, author, or genre" oninput="fetchBooks()">
+        
+        <select id="sortBy" onchange="fetchBooks()">
+            <option value="avg_rating">Sort by Avg Rating</option>
+            <option value="num_ratings">Sort by Num Ratings</option>
+            <option value="title">Sort by Title</option>
+        </select>
+
+        <select id="sortOrder" onchange="fetchBooks()">
+            <option value="asc">Ascending</option>
+            <option value="desc">Descending</option>
+        </select>
+    </div>
+
+    <!-- List of books -->
+    <ul id="bookList" class="book-list">
+        <!-- Books will be displayed here dynamically -->
+    </ul>
+
+    <!-- Pagination -->
+    <div id="pagination" class="pagination"></div>
+
+    <script>
+        let currentPage = 1;
+        const pageSize = 10;
+
+        // Function to update pagination with ellipses and limited page numbers
+function updatePagination(totalBooks, currentPage) {
+    const pagination = document.getElementById('pagination');
+    pagination.innerHTML = ''; // Clear current pagination
+
+    const totalPages = Math.ceil(totalBooks / pageSize);
+    const maxVisiblePages = 5; // Maximum number of page buttons to display
+
+    // Previous button
+    const prevButton = document.createElement('button');
+    prevButton.innerText = 'Prev';
+    prevButton.disabled = currentPage === 1;
+    prevButton.onclick = function() {
+        if (currentPage > 1) {
+            currentPage--;
+            fetchBooks();
+        }
+    };
+    pagination.appendChild(prevButton);
+
+    // Display limited page numbers
+    let startPage, endPage;
+    if (totalPages <= maxVisiblePages) {
+        // Show all pages if totalPages is less than or equal to maxVisiblePages
+        startPage = 1;
+        endPage = totalPages;
+    } else {
+        // Otherwise, show a range around the current page
+        if (currentPage <= 3) {
+            startPage = 1;
+            endPage = maxVisiblePages;
+        } else if (currentPage + 2 >= totalPages) {
+            startPage = totalPages - maxVisiblePages + 1;
+            endPage = totalPages;
+        } else {
+            startPage = currentPage - 2;
+            endPage = currentPage + 2;
+        }
+    }
+
+    // Add page buttons
+    for (let page = startPage; page <= endPage; page++) {
+        const button = document.createElement('button');
+        button.innerText = page;
+        button.onclick = function() {
+            currentPage = page;
+            fetchBooks();
+        };
+        if (page === currentPage) {
+            button.style.fontWeight = 'bold'; // Highlight current page
+        }
+        pagination.appendChild(button);
+    }
+
+    // Add ellipses if there are skipped pages
+    if (startPage > 1) {
+        const ellipses = document.createElement('span');
+        ellipses.innerText = '...';
+        pagination.insertBefore(ellipses, pagination.firstChild);
+    }
+    if (endPage < totalPages) {
+        const ellipses = document.createElement('span');
+        ellipses.innerText = '...';
+        pagination.appendChild(ellipses);
+    }
+
+    // Next button
+    const nextButton = document.createElement('button');
+    nextButton.innerText = 'Next';
+    nextButton.disabled = currentPage === totalPages;
+    nextButton.onclick = function() {
+        if (currentPage < totalPages) {
+            currentPage++;
+            fetchBooks();
+        }
+    };
+    pagination.appendChild(nextButton);
+}
+
+
+// Function to fetch and display books
+function fetchBooks() {
+    const searchTerm = document.getElementById('searchTerm').value;
+    const sortBy = document.getElementById('sortBy').value;
+    const sortOrder = document.getElementById('sortOrder').value;
+
+    // Encode the search term to handle special characters
+    const encodedSearchTerm = encodeURIComponent(searchTerm);
+
+    // Prepare the API URL with query parameters
+    let apiUrl = `http://127.0.0.1:5000/books?search=${encodedSearchTerm}&sort_by=${sortBy}&order=${sortOrder}&page=${currentPage}&page_size=${pageSize}`;
+
+    // Make the API call
+    fetch(apiUrl)
+        .then(response => response.json())
+        .then(data => {
+            const bookList = document.getElementById('bookList');
+            bookList.innerHTML = ''; // Clear current book list
+            bookList.classList.remove('loaded'); // Remove loaded class before updating
+
+            // Handle case where no books are returned
+            if (data.books.length === 0) {
+                bookList.innerHTML = '<li>No books found for the given filters.</li>';
+            } else {
+                data.books.forEach(book => {
+                    const bookItem = document.createElement('li');
+                    bookItem.className = 'book-item';
+                    bookItem.innerHTML = `
+                        <h3>${book.title}</h3>
+                        <p><strong>Author:</strong> ${book.author || 'N/A'}</p>
+                        <p><strong>Description:</strong> ${book.description || 'No description available'}</p>
+                        <p><strong>Genres:</strong> ${book.genres || 'N/A'}</p>
+                        <p><strong>Avg Rating:</strong> ${book.avg_rating !== null ? book.avg_rating : 'N/A'}</p>
+                        <p><strong>Num Ratings:</strong> ${book.num_ratings !== null ? book.num_ratings : 'N/A'}</p>
+                        <p><strong>URL:</strong> <a href="${book.url}" target="_blank">View Book</a></p>
+                    `;
+                    bookList.appendChild(bookItem);
+                });
+                updatePagination(data.totalBooks, currentPage);
+            }
+
+            bookList.classList.add('loaded'); // Add loaded class to make it visible
+        })
+        .catch(error => console.error('Error fetching books:', error));
+}
+
+
+        // Fetch books when the page loads
+        window.onload = function() {
+            fetchBooks();
+        };
+    </script>
+
+</body>
+</html>
